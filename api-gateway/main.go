@@ -24,14 +24,14 @@ func login(c *fiber.Ctx) error {
 	}
 
 	if req.Username == "admin" && req.Password == "admin" {
-		token := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.MapClaims{
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 			"username": req.Username,
 			"exp":      time.Now().Add(time.Hour * 2).Unix(),
 		})
 
 		tokenString, err := token.SignedString(jwtSecret)
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).SendString("Could not generate token")
+			return c.Status(fiber.StatusInternalServerError).SendString("Could not generate token" + err.Error())
 		}
 
 		return c.JSON(fiber.Map{
@@ -74,16 +74,16 @@ func main() {
 
 	app.Post("/login", login)
 
-	app.Use(authMiddleware)
+	protected := app.Use(authMiddleware)
 
-	app.All("/tasks/*", func(c *fiber.Ctx) error {
+	protected.All("/tasks/*", func(c *fiber.Ctx) error {
 		targetURL := "http://localhost:3000/tasks" + c.OriginalURL()[len("/tasks"):]
 		log.Printf("Proxying to Task Service : %s", targetURL)
 		return proxy.Do(c, targetURL)
 	})
 
 	// Catch-all for unmatched routes
-	app.All("*", func(c *fiber.Ctx) error {
+	protected.All("*", func(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).SendString("Route not found")
 	})
 
